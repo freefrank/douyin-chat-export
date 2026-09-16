@@ -6,8 +6,6 @@ on:
     branches: [main]
     tags: ["v*"]
 
-# 同一 ref 的运行排队执行，避免连续 push main 时两个发布 job 赛跑、
-# 旧 run 后完成把 test 指回旧镜像
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: false
@@ -20,17 +18,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"          # 与 Dockerfile 运行时一致
+          python-version: "3.12"
           cache: pip
       - name: Install deps
-        # 只装 pip 包，不装 playwright 浏览器：测试是离线特征测试，不启浏览器
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
       - name: Stub frontend dist
-        # backend.main 只在 frontend/dist 存在时才注册 SPA 路由（/、/favicon.svg、
-        # /{full_path}）。路由契约测试要断言完整路由表，所以造个空壳让它们注册；
-        # 内容无所谓，契约测试只枚举路由不请求它们。
         run: mkdir -p frontend/dist/assets && touch frontend/dist/index.html
       - name: Run pytest
         run: python -m pytest -q
@@ -45,16 +39,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"              # 与 Dockerfile frontend-builder 一致
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run test --if-present
       - run: npm run build
 
-  # ---- 镜像发布（只在 push main / 打 v* tag 时跑，PR 只测试）----
-  # 两个架构各在原生 runner 上构建、按 digest 推送，最后合并成一个
-  # multi-arch manifest。GHCR 用内置 GITHUB_TOKEN 推送，无需额外 secret。
   build-image:
     name: Docker image (${{ matrix.arch }})
     if: github.event_name == 'push'
@@ -69,7 +60,7 @@ jobs:
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64
-            runner: ubuntu-24.04-arm    # public 仓库免费的原生 arm64 runner
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -81,8 +72,7 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          # GHCR 要求镜像名全小写，不能直接用 github.repository
-          images: ghcr.io/teambreakerr/douyin-chat-export
+          images: ghcr.io/freefrank/douyin-chat-export
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
@@ -90,7 +80,7 @@ jobs:
           context: .
           platforms: linux/${{ matrix.arch }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=ghcr.io/teambreakerr/douyin-chat-export,push-by-digest=true,name-canonical=true,push=true
+          outputs: type=image,name=ghcr.io/freefrank/douyin-chat-export,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
       - name: Export digest
@@ -125,10 +115,10 @@ jobs:
       - uses: docker/metadata-action@v5
         id: meta
         with:
-          images: ghcr.io/teambreakerr/douyin-chat-export
-          # main 发布测试镜像；v* tag 发布正式镜像，并移动 latest。
+          images: ghcr.io/freefrank/douyin-chat-export
           flavor: latest=false
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=test,enable={{is_default_branch}}
             type=sha,prefix=main-,enable={{is_default_branch}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -140,6 +130,6 @@ jobs:
         run: |
           docker buildx imagetools create \
             $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf 'ghcr.io/teambreakerr/douyin-chat-export@sha256:%s ' *)
+            $(printf 'ghcr.io/freefrank/douyin-chat-export@sha256:%s ' *)
       - name: Inspect
-        run: docker buildx imagetools inspect ghcr.io/teambreakerr/douyin-chat-export:${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect ghcr.io/freefrank/douyin-chat-export:${{ steps.meta.outputs.version }}

@@ -311,6 +311,12 @@ def get_user(uid: str):
     return user
 
 
+# Enhanced original-image recovery panel + API must be registered before the
+# legacy control router so its /panel HTML route wins route matching. The rest
+# of the legacy control-panel API remains unchanged.
+from backend.original_images import original_images_router
+app.include_router(original_images_router)
+
 # Control panel
 from backend.control_panel import control_router, restore_schedule_on_startup
 app.include_router(control_router)
