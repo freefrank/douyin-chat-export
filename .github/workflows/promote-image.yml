@@ -23,8 +23,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Move latest tag
         env:
-          SOURCE_IMAGE: ghcr.io/teambreakerr/douyin-chat-export:${{ inputs.source_tag }}
-          TARGET_IMAGE: ghcr.io/teambreakerr/douyin-chat-export:latest
+          SOURCE_IMAGE: ghcr.io/freefrank/douyin-chat-export:${{ inputs.source_tag }}
+          TARGET_IMAGE: ghcr.io/freefrank/douyin-chat-export:latest
         run: docker buildx imagetools create --tag "$TARGET_IMAGE" "$SOURCE_IMAGE"
       - name: Inspect latest
-        run: docker buildx imagetools inspect ghcr.io/teambreakerr/douyin-chat-export:latest
+        run: docker buildx imagetools inspect ghcr.io/freefrank/douyin-chat-export:latest
